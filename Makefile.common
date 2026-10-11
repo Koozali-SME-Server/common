@@ -72,6 +72,8 @@ COMMIT_URL := $(shell git config --get remote.origin.url 2>/dev/null | \
 # Defaults to versions contained in file common/current if HEAD=master (with prefix of either sme or contribs based on GITEA organisation)
 # Check if GIT_BRANCH starts with "sme" or "contribs" and issue a WARNING
 POSSIBLE_TARGET := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+VALID_TARGETS := $(shell cut -d: -f1 $(COMMON_DIR)/branches 2>/dev/null)
+# If it's a switch check that the target git branch exists
 ifeq ($(firstword $(MAKECMDGOALS)),switch)
   NEW_BRANCH := $(POSSIBLE_TARGET)
   ifneq ($(strip $(NEW_BRANCH))),)
@@ -83,24 +85,24 @@ ifeq ($(firstword $(MAKECMDGOALS)),switch)
   endif
   TARGET = $(addprefix $(PREF),$(CURRENT))
 else
-  ifneq ($(filter sme% contribs%,$(POSSIBLE_TARGET)),)
+  ifneq ($(filter $(POSSIBLE_TARGET),$(VALID_TARGETS)),)
     TARGET = $(POSSIBLE_TARGET)
   endif
   ifneq ($(strip $(TARGET)),)
-    ifneq ($(filter sme% contribs%,$(GIT_BRANCH)),)
+    ifneq ($(filter $(GIT_BRANCH),$(VALID_TARGETS)),)
       $(info WARNING: you are overiding the Branch default Target of $(GIT_BRANCH) with $(TARGET)) 
     endif
   else
     ifeq ($(GIT_BRANCH),master)
-      SME_BRANCHES := $(shell git branch -a --list 'sme*' 'contribs*' | sed -E 's|[* ]||g; s|remotes/origin/||g; s|HEAD->origin/master||g; /^$$/d' | sort -u 2>/dev/null)
-      ifneq ($(strip $(SME_BRANCHES)),)
+      TARGETS_PRESENT := $(strip $(filter $(GIT_BRANCHES),$(VALID_TARGETS)))
+      ifneq ($(TARGETS_PRESENT),)
         TARGET = $(addprefix $(PREF),$(word 1,$(CURRENT)))
-        $(info WARNING: you have sme* or contribs* git branches, so defaulting to primary current target ONLY $(TARGET))
+        $(info WARNING: you have some valid target git branches ($(TARGETS_PRESENT)), so defaulting to primary current target ONLY ($(TARGET)))
       else
         TARGET = $(addprefix $(PREF),$(CURRENT))
       endif
     else
-      ifneq ($(filter sme% contribs%,$(GIT_BRANCH)),)
+      ifneq ($(filter $(GIT_BRANCH),$(VALID_TARGETS)),)
         TARGET = $(GIT_BRANCH)
       else
         TARGET = $(addprefix $(PREF),$(CURRENT))
@@ -109,7 +111,6 @@ else
   endif
 endif
 # check list of TARGETs against common/branches to check that they exist
-VALID_TARGETS := $(shell cut -d: -f1 $(COMMON_DIR)/branches 2>/dev/null)
 INVALID_TARGETS := $(filter-out $(VALID_TARGETS),$(TARGET))
 ifneq ($(firstword $(MAKECMDGOALS)),switch)
 # Check if TARGET is completely empty
